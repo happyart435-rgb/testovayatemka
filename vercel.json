@@ -1,13 +1,14 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.py" },
-    { "source": "/", "destination": "/index.html" }
+  "routes": [
+    { "src": "/create_stars_pay", "dest": "/api/index.js" },
+    { "src": "/create_crypto_pay", "dest": "/api/index.js" },
+    { "src": "/crypto-webhook", "dest": "/api/index.js" },
+    { "src": "/get_balance/(.*)", "dest": "/api/index.js" },
+    { "src": "/create_stars_pay", "dest": "/api/create_stars_pay.js" },
+    { "src": "/create_crypto_pay", "dest": "/api/create_crypto_pay.js" },
+    { "src": "/crypto-webhook", "dest": "/api/crypto-webhook.js" },
+    { "src": "/stars-webhook", "dest": "/api/stars-webhook.js" },
+    { "src": "/(.*)", "dest": "/$1" }
   ]
 }
