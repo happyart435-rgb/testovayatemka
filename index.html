@@ -241,19 +241,27 @@
 
 <script>
     const tg = window.Telegram.WebApp;
+    // Безопасное получение ID
     const userId = String(tg.initDataUnsafe?.user?.id || '8015661230');
 
     const SUPABASE_URL = 'https://xjucalpaoqlrtmofmden.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_SaK4-9Ub_yQQez5F-eUq3A_NPx46axx';
     
-    // ИСПРАВЛЕНИЕ: Используем глобальный объект supabase
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let isProcessing = false;
-    // ИСПРАВЛЕНИЕ: Используем относительный путь для API
     const API_BASE = '/api'; 
     let ctx;
     let starsArr = [];
+
+    // УНИВЕРСАЛЬНЫЙ МЕТОД ОПОВЕЩЕНИЯ (не падает с ошибкой WebAppMethodUnsupported)
+    function notify(message) {
+        if (typeof tg.showAlert === 'function') {
+            tg.showAlert(message);
+        } else {
+            alert(message);
+        }
+    }
 
     async function syncData() {
         try {
@@ -285,14 +293,16 @@
                 body: JSON.stringify({ user_id: userId, amount: Number(amount) })
             });
             const data = await res.json();
+            console.log("Ответ сервера (TON):", data); // Отладка
+            
             if (res.ok && data.result?.pay_url) {
                 tg.openTelegramLink(data.result.pay_url);
                 closeVault();
             } else {
-                tg.showAlert(data.error || 'Ошибка платежа');
+                notify(data.error || 'Ошибка платежа');
             }
         } catch (e) {
-            tg.showAlert('Ошибка сети');
+            notify('Ошибка сети: ' + e.message);
         } finally {
             isProcessing = false;
         }
@@ -301,7 +311,7 @@
     async function verifyGift() {
         const input = document.getElementById('stars-input');
         const val = parseInt(input.value);
-        if (!val || val < 50) return tg.showAlert('Минимум 50 звезд!');
+        if (!val || val < 50) return notify('Минимум 50 звезд!');
         
         try {
             const res = await fetch(`${API_BASE}/create_stars_pay`, {
@@ -310,15 +320,17 @@
                 body: JSON.stringify({ user_id: userId, amount: val })
             });
             const data = await res.json();
+            console.log("Ответ сервера (STARS):", data); // Отладка
+            
             if (data.result?.url) {
                 tg.openInvoice(data.result.url, (status) => {
-                    if (status === 'paid') tg.showAlert('Баланс пополнен!');
+                    if (status === 'paid') notify('Баланс пополнен!');
                 });
             } else {
-                tg.showAlert(data.description || 'Ошибка API звезд');
+                notify(data.description || 'Ошибка API звезд');
             }
         } catch (e) {
-            tg.showAlert('Ошибка: ' + e.message);
+            notify('Ошибка: ' + e.message);
         }
     }
 
@@ -350,8 +362,10 @@
 
     function closeVault() { document.getElementById('vault-modal').style.display = 'none'; }
 
+    // Анимация звезд
     function initStars() {
         const canvas = document.getElementById('stars-canvas');
+        if(!canvas) return;
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         starsArr = Array.from({length: 35}, () => ({ 
@@ -365,7 +379,7 @@
 
     function animateStars() {
         const canvas = document.getElementById('stars-canvas');
-        if (!ctx) return;
+        if (!ctx || !canvas) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         starsArr.forEach(s => {
             ctx.beginPath(); 
@@ -408,6 +422,9 @@
             const loader = document.getElementById('global-loader');
             if(loader) loader.style.display = 'none';
         }, 800);
+        
+        // Автообновление баланса каждые 10 секунд
+        setInterval(syncData, 10000);
     };
 
     window.addEventListener('resize', initStars);
