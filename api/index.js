@@ -1,41 +1,35 @@
-// В начало файла добавь инициализацию клиента
 const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient('ТВОЙ_URL_SUPABASE', 'ТВОЙ_СЕРВИСНЫЙ_КЛЮЧ');
+// Замени на свои реальные ключи, если они еще не в переменных окружения
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-app.post('/api/crypto-webhook', async (req, res) => {
-    // Получаем данные из присланного ботом уведомления
-    // В CryptoPay структура данных выглядит так:
-    const update = req.body;
-    
-    if (update.status === 'paid') {
-        const userId = update.payload; // То, что ты передавал при создании инвойса
-        const paidAmount = update.amount;
+export default async function handler(req, res) {
+    if (req.method === 'POST') {
+        const update = req.body;
 
-        try {
-            // 1. Сначала берем текущий баланс
-            const { data: user, error: fetchErr } = await supabase
-                .from('users')
-                .select('balance')
-                .eq('user_id', userId)
-                .single();
+        // Если пришла успешная оплата "Звездами" (Telegram Stars)
+        if (update.message?.successful_payment) {
+            const userId = update.message.from.id;
+            const amount = update.message.successful_payment.total_amount; 
 
-            if (fetchErr) throw fetchErr;
+            try {
+                // 1. Получаем текущий баланс пользователя
+                const { data: user } = await supabase
+                    .from('users')
+                    .select('stars')
+                    .eq('user_id', userId)
+                    .single();
 
-            // 2. Добавляем к текущему балансу пришедшую сумму
-            const newBalance = parseFloat(user.balance) + parseFloat(paidAmount);
+                // 2. Обновляем баланс в базе
+                await supabase
+                    .from('users')
+                    .update({ stars: (user.stars || 0) + amount })
+                    .eq('user_id', userId);
 
-            // 3. Обновляем в базе
-            await supabase
-                .from('users')
-                .update({ balance: newBalance })
-                .eq('user_id', userId);
-
-            console.log(`Баланс юзера ${userId} обновлен на ${paidAmount}`);
-        } catch (err) {
-            console.error("Ошибка обновления базы:", err);
-            return res.status(500).send('Database Error');
+                return res.status(200).send('OK');
+            } catch (err) {
+                return res.status(500).send('Database Error');
+            }
         }
     }
-
-    res.status(200).send('OK');
-});
+    res.status(200).send('Webhook Received');
+}
