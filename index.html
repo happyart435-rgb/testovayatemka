@@ -311,7 +311,7 @@
     async function verifyGift() {
         const input = document.getElementById('stars-input');
         const val = parseInt(input.value);
-        if (!val || val < 50) return notify('Минимум 50 звезд!');
+        if (!val || val < 1) return notify('Минимум 50 звезд!');
         
         try {
             const res = await fetch(`${API_BASE}/create_stars_pay`, {
