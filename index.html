@@ -293,25 +293,25 @@
             const data = await res.json();
             
             if (data.pay_url) {
+                // Прямой вызов без сложной логики обработки внутри, 
+                // чтобы не было зависания
                 tg.openInvoice(data.pay_url, (status) => {
+                    console.log("Статус оплаты:", status);
                     if (status === 'paid' || status === 'approved') {
-                        tg.showAlert('Успешно! Баланс обновлен.');
-                        closeVault();
+                        tg.showAlert('Успешно!');
                         syncData();
-                    } else {
-                        tg.showAlert('Оплата не прошла.');
                     }
+                    closeVault();
                 });
             } else {
-                tg.showAlert('Ошибка создания счета');
+                tg.showAlert('Ошибка: сервер не вернул ссылку');
             }
         } catch (e) { 
-            tg.showAlert('Ошибка сервера'); 
+            tg.showAlert('Ошибка соединения'); 
         } finally { 
             isProcessing = false; 
         }
     }
-
     function renderTonPacks() {
         const PACKS = [0.5, 1, 3, 5, 10, 20, 50, 100, 250];
         document.getElementById('pane-ton').innerHTML = PACKS.map(amt => `
