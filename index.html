@@ -278,10 +278,11 @@
         finally { isProcessing = false; }
     }
 
-    // Оплата STARS
+    // Оплата STARS (ИСПРАВЛЕННАЯ ФУНКЦИЯ)
     async function verifyGift() {
         const val = parseInt(document.getElementById('stars-input').value);
         if (!val || val < 1) return tg.showAlert('Введите число');
+        
         isProcessing = true;
         try {
             const res = await fetch(`${BACKEND_URL}/create_stars_pay`, {
@@ -290,13 +291,25 @@
                 body: JSON.stringify({ user_id: user.id, amount: val })
             });
             const data = await res.json();
+            
             if (data.pay_url) {
                 tg.openInvoice(data.pay_url, (status) => {
-                    if (status === 'paid') { tg.showAlert('Успешно!'); closeVault(); syncData(); }
+                    if (status === 'paid' || status === 'approved') {
+                        tg.showAlert('Успешно! Баланс обновлен.');
+                        closeVault();
+                        syncData();
+                    } else {
+                        tg.showAlert('Оплата не прошла.');
+                    }
                 });
+            } else {
+                tg.showAlert('Ошибка создания счета');
             }
-        } catch (e) { tg.showAlert('Ошибка сервера'); } 
-        finally { isProcessing = false; }
+        } catch (e) { 
+            tg.showAlert('Ошибка сервера'); 
+        } finally { 
+            isProcessing = false; 
+        }
     }
 
     function renderTonPacks() {
