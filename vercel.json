@@ -4,10 +4,13 @@
     {
       "src": "api/index.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "img/**",
+      "use": "@vercel/static"
     }
   ],
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.py" },
-    { "source": "/img/(.*)", "destination": "/img/$1" }
+    { "source": "/api/(.*)", "destination": "/api/index.py" }
   ]
 }
