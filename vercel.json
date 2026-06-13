@@ -3,7 +3,8 @@
   "builds": [
     {
       "src": "api/index.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": { "maxLambdaSize": "15mb", "runtime": "python3.9" }
     },
     {
       "src": "index.html",
@@ -21,5 +22,9 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.py" },
     { "source": "/", "destination": "/index.html" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/index.py" },
+    { "src": "/(.*)", "dest": "/$1" }
   ]
 }
