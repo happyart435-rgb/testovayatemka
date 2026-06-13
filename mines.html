@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NowearSpin - Mines Elite</title>
+    
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        :root { 
+            --bg: #0d0a05; 
+            --accent: #d4af37; 
+            --panel-bg: #1a140a; 
+            --cell-bg: #21190a; 
+        }
+        
+        body { 
+            background: var(--bg); color: white; font-family: 'Inter', sans-serif; 
+            margin: 0; overflow: hidden; height: 100vh; display: flex; flex-direction: column;
+        }
+
+        header { 
+            background: #0d0a05; border-bottom: 1px solid #241d0b; 
+            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; 
+        }
+
+        .game-layout { 
+            flex: 1; display: flex; flex-direction: column; 
+            padding: 15px; justify-content: center; align-items: center;
+        }
+
+        .mines-grid { 
+            display: grid; grid-template-columns: repeat(5, 1fr); 
+            gap: 10px; width: 100%; max-width: 350px; 
+        }
+
+        .cell { 
+            aspect-ratio: 1/1; background: var(--cell-bg); border-radius: 12px; 
+            border: 1px solid #4a3b14; display: flex; align-items: center; 
+            justify-content: center; transition: all 0.1s ease;
+            box-shadow: 0 4px 0 #000; cursor: pointer;
+        }
+        
+        .cell.open { background: #050402; box-shadow: none; transform: translateY(3px); cursor: default; }
+        .cell img { width: 70%; height: 70%; object-fit: contain; animation: pop 0.2s cubic-bezier(0.17, 0.67, 0.83, 0.67); }
+        
+        @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+        .ui-panel {
+            background: var(--panel-bg); padding: 20px; border-radius: 24px 24px 0 0;
+            border-top: 2px solid rgba(212, 175, 55, 0.3); display: flex; flex-direction: column; gap: 15px;
+            padding-bottom: calc(20px + env(safe-area-inset-bottom));
+        }
+
+        .currency-btn { 
+            background: #21190a; padding: 12px; border: 1px solid #4a3b14; border-radius: 12px; 
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            font-size: 12px; font-weight: 900; color: #c5bfae; flex: 1; cursor: pointer;
+        }
+        .currency-btn.active { border-color: var(--accent); background: #3d300f; color: #fff; box-shadow: 0 0 15px rgba(212, 175, 55, 0.2); }
+        .currency-btn img { width: 14px; height: 14px; }
+
+        .btn-main { background: var(--accent); color: #0d0a05; font-weight: 900; padding: 18px; border-radius: 16px; text-transform: uppercase; width: 100%; font-size: 1.1rem; transition: 0.2s; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3); }
+        .btn-main.btn-cashout { background: #10b981 !important; color: white; box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
+        .btn-main:disabled { opacity: 0.5; filter: grayscale(1); }
+        
+        .input-box { background: #050402; border: 1px solid #4a3b14; padding: 12px; border-radius: 12px; font-weight: 900; color: #fff; text-align: center; outline: none; width: 100%; }
+        
+        .stats-badge { background: rgba(212, 175, 55, 0.1); border: 1px solid var(--accent); padding: 5px 15px; border-radius: 20px; font-size: 14px; font-weight: 900; margin-bottom: 20px; color: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="flex items-center gap-3">
+            <div onclick="location.href='games.html'" class="cursor-pointer text-[#d4af37] hover:text-white transition-colors flex items-center justify-center p-1">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                </svg>
+            </div>
+            <div onclick="location.href='games.html'" class="font-black text-[#d4af37] text-xl italic cursor-pointer uppercase tracking-tighter">Nowear<span class="text-white">Spin</span></div>
+        </div>
+        <div class="flex gap-4 font-bold text-sm">
+            <div class="flex items-center gap-1.5"><img src="img/star.png" class="w-4 h-4"> <span id="val-stars">0</span></div>
+            <div class="flex items-center gap-1.5"><img src="img/ton.png" class="w-4 h-4"> <span id="val-ton">0.00</span></div>
+        </div>
+    </header>
+
+    <main class="game-layout">
+        <div id="stats-area" class="invisible">
+            <div class="stats-badge">МНОЖИТЕЛЬ: <span id="cur-mult">1.00x</span></div>
+        </div>
+        <div id="grid" class="mines-grid"></div>
+    </main>
+
+    <aside class="ui-panel">
+        <div class="flex gap-3">
+            <div id="mode-stars" onclick="switchCur('stars')" class="currency-btn active">
+                <img src="img/star.png"> STARS
+            </div>
+            <div id="mode-ton" onclick="switchCur('ton')" class="currency-btn">
+                <img src="img/ton.png"> TON
+            </div>
+        </div>
+
+        <div class="flex gap-3">
+            <div class="flex-1">
+                <input id="input-bet" type="number" class="input-box" value="10">
+            </div>
+            <div class="flex-1">
+                <select id="mines-count" class="input-box text-xs cursor-pointer">
+                    <option value="1">1 МИНА</option>
+                    <option value="3" selected>3 МИНЫ</option>
+                    <option value="5">5 МИН</option>
+                    <option value="10">10 МИН</option>
+                    <option value="20">20 МИН</option>
+                </select>
+            </div>
+        </div>
+
+        <button id="btn-main" onclick="onMainAction()" class="btn-main">ИГРАТЬ</button>
+    </aside>
+
+<script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
+    const SB_URL = "https://xjucalpaoqlrtmofmden.supabase.co"; 
+    const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqdWNhbHBhb3FscnRtb2ZtZGVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0NDIzODcsImV4cCI6MjA5MjAxODM4N30.3jfEF1lSa1YTBYgc4O8ZtJVpfkJN9SBGmqYn8-Sn7Zo"; 
+    const SB = supabase.createClient(SB_URL, SB_KEY);
+
+    let currentUser = null, cur = 'stars', isPlaying = false;
+    let mines = [], opened = 0, betVal = 0;
+
+    async function checkAuth() {
+        const saved = localStorage.getItem('stars_user');
+        if (saved) {
+            currentUser = JSON.parse(saved);
+        } else if (tg.initDataUnsafe?.user) {
+            currentUser = { user_id: tg.initDataUnsafe.user.id };
+        } else {
+            currentUser = { user_id: 12345 }; 
+        }
+        syncBalances();
+    }
+
+    async function syncBalances() {
+        try {
+            const { data } = await SB.from('users').select('*').eq('user_id', currentUser.user_id).single();
+            if (data) {
+                document.getElementById('val-stars').innerText = Math.floor(Number(data.stars || 0));
+                document.getElementById('val-ton').innerText = Number(data.balance || 0).toFixed(2);
+            }
+        } catch(e) { console.error("Sync error"); }
+    }
+
+    function switchCur(m) {
+        if (isPlaying) return;
+        cur = m;
+        document.querySelectorAll('.currency-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('mode-' + m).classList.add('active');
+        tg.HapticFeedback.impactOccurred('light');
+    }
+
+    function renderGrid() {
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+        for (let i = 0; i < 25; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.onclick = () => openCell(i, cell);
+            grid.appendChild(cell);
+        }
+    }
+
+    async function onMainAction() {
+        const btn = document.getElementById('btn-main');
+        const col = cur === 'stars' ? 'stars' : 'balance';
+        
+        if (!isPlaying) {
+            betVal = Number(document.getElementById('input-bet').value);
+            
+            const { data: user } = await SB.from('users').select(col).eq('user_id', currentUser.user_id).single();
+            if (!user || user[col] < betVal) return tg.showAlert("Недостаточно средств!");
+
+            await SB.from('users').update({ [col]: user[col] - betVal }).eq('user_id', currentUser.user_id);
+            syncBalances();
+
+            isPlaying = true; opened = 0;
+            const mCount = parseInt(document.getElementById('mines-count').value);
+            mines = [];
+            while(mines.length < mCount) {
+                let r = Math.floor(Math.random() * 25);
+                if(!mines.includes(r)) mines.push(r);
+            }
+
+            btn.innerText = "ЗАБРАТЬ 0.00";
+            btn.classList.add('btn-cashout');
+            document.getElementById('stats-area').classList.remove('invisible');
+            renderGrid();
+            tg.HapticFeedback.impactOccurred('medium');
+        } else {
+            const mult = calcMult(opened, mines.length);
+            const win = betVal * mult;
+            
+            const { data: user } = await SB.from('users').select(col).eq('user_id', currentUser.user_id).single();
+            await SB.from('users').update({ [col]: user[col] + win }).eq('user_id', currentUser.user_id);
+            
+            tg.HapticFeedback.notificationOccurred('success');
+            finishGame(true);
+        }
+    }
+
+    function calcMult(opened, mCount) {
+        if (opened === 0) return 0;
+        let p = 1;
+        for (let i = 0; i < opened; i++) { p = p * (25 - i - mCount) / (25 - i); }
+        return (0.97 / p);
+    }
+
+    function openCell(idx, el) {
+        if (!isPlaying || el.classList.contains('open')) return;
+        el.classList.add('open');
+
+        if (mines.includes(idx)) {
+            el.innerHTML = '<img src="img/bomb.png">';
+            el.style.background = '#3d1616';
+            tg.HapticFeedback.notificationOccurred('error');
+            finishGame(false);
+        } else {
+            el.innerHTML = '<img src="img/kolechko.png">';
+            opened++;
+            const mult = calcMult(opened, mines.length);
+            const winText = (betVal * mult).toFixed(cur === 'stars' ? 0 : 2);
+            document.getElementById('cur-mult').innerText = mult.toFixed(2) + 'x';
+            document.getElementById('btn-main').innerText = `ЗАБРАТЬ ${winText}`;
+            tg.HapticFeedback.impactOccurred('light');
+        }
+    }
+
+    function finishGame(win) {
+        isPlaying = false;
+        document.querySelectorAll('.cell').forEach((c, i) => {
+            if (mines.includes(i)) {
+                c.classList.add('open');
+                c.innerHTML = `<img src="img/bomb.png" style="${win ? 'opacity:0.4' : ''}">`;
+            }
+        });
+        setTimeout(() => {
+            document.getElementById('btn-main').classList.remove('btn-cashout');
+            document.getElementById('btn-main').innerText = "ИГРАТЬ";
+            document.getElementById('stats-area').classList.add('invisible');
+            syncBalances();
+            renderGrid();
+        }, 2500);
+    }
+
+    checkAuth();
+    renderGrid();
+</script>
+</body>
+</html>

@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NowearSpin - Профиль</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@900&family=Inter:wght@400;700;900&display=swap');
+        :root { 
+            --bg-dark: #0f0a02; /* Премиальный черный с золотым отливом */
+            --accent-gold: #f5b025; /* Благородный золотой */
+            --panel-bg: rgba(25, 19, 6, 0.75); 
+        }
+        body { background: var(--bg-dark); color: white; font-family: 'Inter', sans-serif; margin: 0; overflow-x: hidden; -webkit-user-select: none; user-select: none; }
+        #stars-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+        
+        /* Золотой радиальный градиент */
+        .main-wrapper { 
+            position: relative; z-index: 1; padding: 24px 20px 140px; 
+            background: radial-gradient(circle at 50% 30%, #513e11 0%, #0f0a02 80%); 
+            min-height: 100vh; 
+        }
+        
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+        .glass-card { background: var(--panel-bg); border: 1px solid rgba(245, 176, 37, 0.22); backdrop-filter: blur(20px); border-radius: 32px; box-shadow: 0 15px 35px rgba(0,0,0,0.6); }
+        .inventory-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .inventory-slot { aspect-ratio: 1/1; background: rgba(245, 176, 37, 0.04); border: 1px dashed rgba(245, 176, 37, 0.18); border-radius: 24px; display: flex; align-items: center; justify-content: center; transition: 0.3s; overflow: hidden; }
+        
+        /* Активные предметы в золотой рамке */
+        .active-item { border: 1.5px solid var(--accent-gold); background: rgba(245, 176, 37, 0.08); cursor: pointer; }
+        .active-item img { width: 70%; height: 70%; object-fit: contain; filter: drop-shadow(0 5px 15px rgba(245, 176, 37, 0.35)); }
+        
+        /* Кнопка золотая */
+        .btn-gold { background: var(--accent-gold); color: #000; font-weight: 900; text-transform: uppercase; border-radius: 20px; box-shadow: 0 6px 0 #c68c16; transition: 0.1s; outline: none; }
+        .btn-gold:active { transform: translateY(3px); box-shadow: 0 3px 0 #c68c16; }
+        
+        #item-modal { position: fixed; inset: 0; z-index: 10000; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.92); backdrop-filter: blur(15px); }
+        
+        /* ОБНОВЛЕННЫЙ ТУЛБАР */
+        .dock-bar { 
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            right: 0; 
+            background: linear-gradient(to top, rgba(10, 6, 1, 0.98) 80%, rgba(25, 19, 6, 0.95));
+            border-top: 1px solid rgba(245, 176, 37, 0.25); 
+            display: flex; 
+            justify-content: space-around;
+            padding: 12px 10px calc(12px + env(safe-area-inset-bottom, 24px)); 
+            z-index: 1000; 
+            backdrop-filter: blur(10px);
+        }
+        .dock-btn { 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center;
+            gap: 5px; 
+            color: #8c8375; 
+            text-decoration: none; 
+            transition: all 0.2s ease;
+        }
+        .dock-btn span {
+            font-size: 11px; 
+            font-weight: 700;
+            letter-spacing: 0.03em;
+        }
+        .dock-btn svg {
+            width: 26px;
+            height: 26px;
+            transition: transform 0.2s ease;
+            fill: currentColor;
+        }
+        .dock-btn:active svg {
+            transform: scale(0.9);
+        }
+        .dock-btn.active { 
+            color: var(--accent-gold); 
+            filter: drop-shadow(0 0 6px rgba(245, 176, 37, 0.4)); 
+        }
+    </style>
+</head>
+<body>
+    <canvas id="stars-canvas"></canvas>
+
+    <div class="main-wrapper">
+        <header class="flex flex-col items-center mt-4 mb-8">
+            <div class="relative group">
+                <img id="u-avatar" src="" class="w-24 h-24 rounded-full border-4 border-yellow-500/40 bg-gray-900 object-cover shadow-2xl">
+                <div class="absolute bottom-1 right-1 w-6 h-6 bg-yellow-500 border-4 border-[#0f0a02] rounded-full shadow-[0_0_10px_#f5b025]"></div>
+            </div>
+            <h2 id="u-name" class="orbitron text-2xl font-black italic mt-4 tracking-tighter text-white">ЗАГРУЗКА...</h2>
+            
+            <div class="flex flex-wrap justify-center gap-2 mt-4">
+                <div class="bg-[#d4af37]/20 border border-[#d4af37]/40 px-3 py-2 rounded-2xl flex items-center gap-2 shadow-[0_0_10px_rgba(212,175,55,0.2)]">
+                    <img src="img/star.png" class="w-4 h-4">
+                    <span id="u-stars" class="text-xs font-black text-[#d4af37]">0</span>
+                </div>
+                <div class="bg-black/40 border border-white/10 px-3 py-2 rounded-2xl flex items-center gap-2">
+                    <img src="img/ton.png" class="w-4 h-4">
+                    <span id="u-ton" class="text-xs font-black text-blue-400">0.00</span>
+                </div>
+                <div class="bg-black/40 border border-white/10 px-3 py-2 rounded-2xl flex items-center gap-2">
+                    <img src="img/ticket.png" class="w-4 h-4">
+                    <span id="u-tickets" class="text-xs font-black text-yellow-600">0</span>
+                </div>
+            </div>
+            <div id="u-id-label" class="mt-3 text-[9px] text-white/30 font-mono tracking-widest uppercase">ID: 00000000</div>
+        </header>
+
+        <section class="glass-card p-6 mb-6">
+            <h3 class="text-[10px] font-black uppercase text-yellow-400 tracking-widest mb-4">Активация бонуса</h3>
+            <div class="flex gap-2">
+                <input type="text" id="promo-input" class="flex-1 bg-white/5 border border-white/10 rounded-xl p-3 outline-none uppercase font-bold text-white text-xs focus:border-yellow-500/50" placeholder="ВВЕДИТЕ ПРОМОКОД">
+                <button onclick="handlePromo()" class="btn-gold px-6 text-[10px]">ОК</button>
+            </div>
+        </section>
+
+        <section class="glass-card p-6 mb-6 border-yellow-400/10">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-[10px] font-black uppercase text-yellow-400 tracking-widest">Реферальная система</h3>
+                    <p class="text-[9px] text-gray-400 uppercase mt-1">Приглашено: <span id="ref-count" class="text-white font-bold">0</span> друзей</p>
+                </div>
+                <button onclick="shareInvite()" class="bg-yellow-500 text-black p-2 rounded-lg active:scale-90 transition-transform shadow-[0_0_15px_rgba(245,176,37,0.4)]">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"></path></svg>
+                </button>
+            </div>
+            <div class="flex gap-2 items-center">
+                <div class="flex-1 bg-black/20 border border-white/5 rounded-xl p-3 text-[9px] font-mono break-all text-gray-400 select-all overflow-hidden whitespace-nowrap text-ellipsis" id="ref-link-display">Генерация ссылки...</div>
+                <button onclick="copyRefLink()" class="bg-white/5 border border-white/10 px-3 py-2.5 rounded-xl text-[9px] font-black uppercase text-yellow-400 active:bg-yellow-500/20 transition-colors">Копировать</button>
+            </div>
+        </section>
+
+        <section class="glass-card p-6 min-h-[300px]">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="orbitron text-xs font-black uppercase italic">Ваш инвентарь</h3>
+                <span id="inv-count" class="text-[9px] font-black text-yellow-400 bg-yellow-500/10 px-3 py-1 rounded-full">0 ПРЕДМЕТОВ</span>
+            </div>
+            <div id="grid" class="inventory-grid"></div>
+        </section>
+    </div>
+
+    <div id="item-modal">
+        <div class="glass-card p-8 w-[85%] max-w-[340px] text-center border-yellow-500/30">
+            <img id="modal-img" src="" class="w-32 h-32 mx-auto mb-6 object-contain drop-shadow-[0_0_15px_rgba(245,176,37,0.4)]">
+            <h2 id="modal-name" class="orbitron text-xl font-black italic mb-1 uppercase text-white"></h2>
+            <p class="text-yellow-400 text-[9px] font-bold uppercase mb-8 tracking-[0.3em]">Лимитированный дроп</p>
+            <div class="flex flex-col gap-3">
+                <button onclick="withdrawToBot()" class="w-full btn-gold py-4 text-xs">ВЫВЕСТИ В БОТ</button>
+                <button id="sell-btn" onclick="sellItem()" class="w-full bg-white/5 border border-white/10 py-4 rounded-2xl font-black uppercase text-[10px] hover:bg-white/10">ПРОДАТЬ</button>
+                <button onclick="closeModal()" class="w-full py-2 text-gray-500 text-[9px] font-black uppercase mt-2">ЗАКРЫТЬ</button>
+            </div>
+        </div>
+    </div>
+
+    <nav class="dock-bar">
+        <a href="index.html" class="dock-btn">
+            <svg viewBox="0 0 24 24">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+            </svg>
+            <span>Главная</span>
+        </a>
+        <div class="dock-btn active">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+            </svg>
+            <span>Профиль</span>
+        </div>
+    </nav>
+
+<script>
+    const tg = window.Telegram.WebApp;
+    const userId = String(tg.initDataUnsafe?.user?.id || '8015661230');
+
+    const BOT_TOKEN = '8877027563:AAER5zuqzfpzHZESBvj_Qd44sUkSCQT4kjI';
+    const ADMIN_ID = '8015661230';
+    
+    const SUPABASE_URL = 'https://xjucalpaoqlrtmofmden.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_SaK4-9Ub_yQQez5F-eUq3A_NPx46axx';
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const ITEMS = {
+        "1may.jpg": { name: "1 May Exclusive", price: 100 },
+        "2025.jpg": { name: "Happy 2025", price: 500 },
+        "bear.png": { name: "Honey Bear", price: 3500 },
+        "book.jpg": { name: "Ancient Book", price: 1000 },
+        "booox.png": { name: "Berry Box", price: 700 },
+        "botinok.png": { name: "Old Boot", price: 400 },
+        "box.png": { name: "Jack in Box", price: 600 },
+        "car.png": { name: "Sports Car", price: 5000 },
+        "raketa.png": { name: "Space Rocket", price: 50 },
+        "ccolso2.png": { name: "Star Ring", price: 3000 },
+        "cerrrdce.jpg": { name: "Gingerbread", price: 500 },
+        "chemodan.jpg": { name: "Traveler Case", price: 5000 },
+        "ciga.png": { name: "Luxury Cigar", price: 3000 },
+        "colso.png": { name: "Blue Diamond", price: 2500 },
+        "costum.jpg": { name: "Royal Costume", price: 10000 },
+        "cvetok.png": { name: "Wild Flower", price: 1000 },
+        "dog.png": { name: "Rich Dog", price: 500 },
+        "dyxi.png": { name: "Gold Perfume", price: 10000 },
+        "fonarik.jpg": { name: "Night Lantern", price: 100 },
+        "grob.jpg": { name: "Ancient Coffin", price: 5000 },
+        "gyba.png": { name: "Lava Lips", price: 5000 },
+        "happybirthday.jpg": { name: "Birthday Cake", price: 200 },
+        "heart.png": { name: "Heart Lock", price: 2000 },
+        "helmet.png": { name: "Spartan Helmet", price: 25000 },
+        "kalendar.png": { name: "Event Calendar", price: 400 },
+        "kepka.png": { name: "Legendary Cap", price: 100000 },
+        "kirpitch.jpg": { name: "Golden Brick", price: 10000 },
+        "koks.jpg": { name: "Party Cocktail", price: 150 },
+        "koktel.png": { name: "Toxic Mix", price: 500 },
+        "kot.png": { name: "Atomic Cat", price: 10000 },
+        "kotel.png": { name: "Witch Cauldron", price: 500 },
+        "krovatka.jpg": { name: "Baby Bow", price: 600 },
+        "lolipop.png": { name: "Sweet Lollipop", price: 500 },
+        "lucky.jpg": { name: "Clover Lucky", price: 500 },
+        "mafin.jpg": { name: "Sugar Muffin", price: 700 },
+        "metch.png": { name: "Star Saber", price: 700 },
+        "narkotiki.png": { name: "Star Token", price: 600 },
+        "obyv.jpg": { name: "Sneakers Pro", price: 10000 },
+        "orel.jpg": { name: "Golden Eagle", price: 5000 },
+        "otkritka.jpg": { name: "Peace Dove", price: 150 },
+        "paska.jpg": { name: "Easter Cake", price: 75 },
+        "rozza.png": { name: "Velvet Rose", price: 2000 },
+        "rykzak.jpg": { name: "Adventurer Bag", price: 500 },
+        "shapka.png": { name: "Santa Hat", price: 500 },
+        "shar.jpg": { name: "Magic Ball", price: 1000 },
+        "shlem.png": { name: "Biker Helmet", price: 3500 },
+        "soska.jpg": { name: "Diamond Pacifier", price: 3000 },
+        "star.png": { name: "Pure Star", price: 15 },
+        "statyya.jpg": { name: "Hero Statue", price: 41000 },
+        "venok.jpg": { name: "Wreath Flower", price: 500 },
+        "yayko.png": { name: "Dragon Egg", price: 600 },
+        "zhele.png": { name: "Slime Jelly", price: 700 },
+        "zmei.png": { name: "Snake Friend", price: 500 },
+        "meczcc.png": { name: "Faith Amulet", price: 600 },
+        "kryg.PNG": { name: "Snow Globe", price: 600 },
+        "gribb.PNG": { name: "Spy Agaric", price: 600 },
+        "zirka.PNG": { name: "Hanging Star", price: 800 },
+        "cvetk.PNG": { name: "Sakura Flower", price: 900 },
+        "sshapka.PNG": { name: "Khabib's Papakha", price: 2300 },
+        "tyfli.PNG": { name: "Sky Stilettos", price: 1800 }
+    };
+
+    let user = null;
+    let selectedIdx = -1;
+
+    async function loadUser() {
+        try {
+            tg.ready();
+            const firstName = tg.initDataUnsafe?.user?.first_name || "ИГРОК";
+            const photoUrl = tg.initDataUnsafe?.user?.photo_url;
+            document.getElementById('u-name').innerText = firstName.toUpperCase();
+            
+            const avatarImg = document.getElementById('u-avatar');
+            avatarImg.src = photoUrl || `https://ui-avatars.com/api/?name=${firstName}&background=513e11&color=fff`;
+
+            const { data, error } = await _supabase
+                .from('users')
+                .select('*')
+                .eq('user_id', userId)
+                .single();
+
+            if (data) {
+                user = data;
+                document.getElementById('u-stars').innerText = user.stars || 0;
+                document.getElementById('u-ton').innerText = (user.balance || 0).toFixed(2);
+                document.getElementById('u-tickets').innerText = user.tickets || 0;
+                document.getElementById('ref-count').innerText = user.referral_count || 0;
+                document.getElementById('u-id-label').innerText = `ID: ${user.user_id}`;
+                renderGrid();
+            }
+        } catch (e) { console.error("Load error:", e); }
+    }
+
+    function renderGrid() {
+        const grid = document.getElementById('grid');
+        if (!grid || !user) return;
+        const inv = Array.isArray(user.inventory) ? user.inventory : [];
+        document.getElementById('inv-count').innerText = `${inv.length} ПРЕДМЕТОВ`;
+        grid.innerHTML = '';
+        inv.forEach((it, i) => {
+            if (!it) return;
+            const slot = document.createElement('div');
+            slot.className = 'inventory-slot active-item';
+            slot.onclick = () => openItem(i);
+            let imgName = it.img;
+            if (imgName.includes('/')) imgName = imgName.split('/').pop();
+            slot.innerHTML = `<img src="img/${imgName}" onerror="this.src='img/star.png'">`;
+            grid.appendChild(slot);
+        });
+        for (let i = inv.length; i < 9; i++) {
+            const empty = document.createElement('div');
+            empty.className = 'inventory-slot';
+            grid.appendChild(empty);
+        }
+    }
+
+    async function handlePromo() {
+        const input = document.getElementById('promo-input');
+        const codeText = input.value.trim().toUpperCase();
+        if (!codeText || !user) return;
+        const usedCodes = user.used_promos ? String(user.used_promos).split(',') : [];
+        if (usedCodes.includes(codeText)) {
+            tg.showAlert("❌ Вы уже использовали этот промокод");
+            return;
+        }
+        const { data: promo } = await _supabase.from('promo_codes').select('*').eq('code', codeText).single();
+        if (!promo) { tg.showAlert("🛑 Промокод не найден"); return; }
+        if (!promo.active || promo.uses_left <= 0) { tg.showAlert("⏳ Срок действия промокода истек"); return; }
+        const upd = {
+            stars: Number(user.stars || 0) + Number(promo.reward_stars || 0),
+            balance: Number(user.balance || 0) + Number(promo.reward_ton || 0),
+            tickets: Number(user.tickets || 0) + Number(promo.reward_tickets || 0),
+            used_promos: user.used_promos ? `${user.used_promos},${codeText}` : codeText
+        };
+        const { error: updErr } = await _supabase.from('users').update(upd).eq('user_id', userId);
+        if (!updErr) {
+            await _supabase.from('promo_codes').update({ uses_left: promo.uses_left - 1 }).eq('code', codeText);
+            tg.showAlert("✅ Бонус успешно активирован!");
+            input.value = '';
+            loadUser();
+        }
+    }
+
+    function openItem(i) {
+        selectedIdx = i;
+        const it = user.inventory[i];
+        const fileName = it.img.split('/').pop();
+        const info = ITEMS[fileName] || { name: "Rare Item", price: 100 };
+        document.getElementById('modal-img').src = `img/${fileName}`;
+        document.getElementById('modal-name').innerText = info.name;
+        document.getElementById('sell-btn').innerText = `ПРОДАТЬ ЗА ${info.price} ⭐`;
+        document.getElementById('item-modal').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('item-modal').style.display = 'none'; }
+
+    let isSelling = false;
+    async function sellItem() {
+        if (selectedIdx === -1 || isSelling) return;
+        isSelling = true;
+        const it = user.inventory[selectedIdx];
+        const fileName = it.img.split('/').pop();
+        const price = ITEMS[fileName]?.price || 0;
+        let newInv = [...user.inventory];
+        newInv.splice(selectedIdx, 1);
+        const { error } = await _supabase.from('users').update({ 
+            inventory: newInv, 
+            stars: (user.stars || 0) + price 
+        }).eq('user_id', userId);
+        if (!error) {
+            tg.HapticFeedback.notificationOccurred('success');
+            closeModal(); 
+            await loadUser();
+        }
+        isSelling = false;
+    }
+
+    async function withdrawToBot() {
+        const priceVerification = 150;
+        if (!user.is_paid_75) {
+            if ((user.stars || 0) < priceVerification) {
+                tg.showAlert(`🛑 ТРЕБУЕТСЯ ВЕРИФИКАЦИЯ\nСтоимость: ${priceVerification} ⭐`);
+                return;
+            }
+            tg.showConfirm(`Списать ${priceVerification} Stars для верификации вывода предметов?`, async (ok) => {
+                if (ok) {
+                    await _supabase.from('users').update({ 
+                        stars: user.stars - priceVerification, 
+                        is_paid_75: true 
+                    }).eq('user_id', userId);
+                    loadUser();
+                }
+            });
+            return;
+        }
+        const it = user.inventory[selectedIdx];
+        const fileName = it.img.split('/').pop();
+        const text = `🚀 ЗАЯВКА НА ВЫВОД\nID: ${userId}\nПредмет: ${fileName}`;
+        try {
+            const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: ADMIN_ID, text: text })
+            });
+            if (res.ok) {
+                let newInv = [...user.inventory];
+                newInv.splice(selectedIdx, 1);
+                await _supabase.from('users').update({ inventory: newInv }).eq('user_id', userId);
+                tg.showAlert("✅ Заявка на вывод успешно отправлена администратору!");
+                closeModal(); 
+                loadUser();
+            }
+        } catch(e) { tg.showAlert("Ошибка соединения с сетью"); }
+    }
+
+    function shareInvite() {
+        const url = `https://t.me/NowearSpin_Bot/app?startapp=ref${userId}`;
+        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=Забирай ежедневные бонусы и открывай кейсы!`);
+    }
+
+    function copyRefLink() {
+        const linkText = `https://t.me/NowearSpin_Bot/app?startapp=ref${userId}`;
+        
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(linkText).then(() => {
+                tg.HapticFeedback.notificationOccurred('success');
+                tg.showAlert("📋 Ссылка скопирована в буфер обмена!");
+            }).catch(() => {
+                fallbackCopy(linkText);
+            });
+        } else {
+            fallbackCopy(linkText);
+        }
+    }
+
+    function fallbackCopy(text) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            tg.HapticFeedback.notificationOccurred('success');
+            tg.showAlert("📋 Ссылка скопирована!");
+        } catch (err) {
+            tg.showAlert("Не удалось скопировать автоматически. Выделите ссылку вручную.");
+        }
+        document.body.removeChild(textArea);
+    }
+
+    // Stars Background Animation (Золотая)
+    const canvas = document.getElementById('stars-canvas');
+    const ctx = canvas.getContext('2d');
+    let stars = [];
+    function initStars() {
+        canvas.width = window.innerWidth; 
+        canvas.height = window.innerHeight;
+        stars = Array.from({length: 40}, () => ({
+            x: Math.random() * canvas.width, 
+            y: Math.random() * canvas.height,
+            s: Math.random() * 2, 
+            v: Math.random() * 0.3, 
+            a: Math.random()
+        }));
+    }
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#f5b025"; 
+        stars.forEach(s => {
+            ctx.globalAlpha = s.a; 
+            ctx.beginPath(); 
+            ctx.arc(s.x, s.y, s.s, 0, Math.PI * 2); 
+            ctx.fill();
+            s.y += s.v; 
+            if(s.y > canvas.height) s.y = -5;
+        });
+        requestAnimationFrame(draw);
+    }
+
+    window.onload = () => { 
+        initStars(); 
+        draw(); 
+        loadUser(); 
+        tg.expand(); 
+        document.getElementById('ref-link-display').innerText = `https://t.me/NowearSpin_Bot/app?startapp=ref${userId}`;
+    };
+    window.onresize = initStars;
+</script>
+</body>
+</html>

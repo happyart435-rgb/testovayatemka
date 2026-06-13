@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NowearSpin Gold Edition</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+        
+        :root { 
+            --bg-dark: #0f0a02; /* Очень темный фон с золотым отливом */
+            --accent-gold: #f5b025; /* Чистый благородный золотой */
+            --deep-gold: #c68c16; /* Более глубокий оттенок для теней */
+            --glow-gold: rgba(245, 176, 37, 0.18); /* Свечение */
+        }
+
+        body { 
+            background: radial-gradient(circle at 50% 30%, #513e11 0%, #0f0a02 75%); 
+            color: white; 
+            font-family: 'Inter', sans-serif; 
+            margin: 0; 
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            user-select: none; 
+            -webkit-tap-highlight-color: transparent; 
+            touch-action: manipulation;
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
+        }
+
+        body.loaded { opacity: 1; }
+
+        /* Блокировщик ПК */
+        #pc-only-blocker { display: none; position: fixed; inset: 0; background: #000; z-index: 999999; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
+        .qr-frame { background: white; padding: 15px; border-radius: 25px; box-shadow: 0 0 40px var(--accent-gold); margin-bottom: 25px; }
+
+        /* Настройки холста со звездами */
+        #stars-canvas { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 1; /* Звезды находятся над фоном body */
+            pointer-events: none; 
+        }
+        
+        .main-wrapper { 
+            background: transparent; /* Делаем обертку прозрачной */
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            position: relative; 
+            z-index: 2; /* Интерфейс находится над звездами */
+        }
+
+        .scrollable-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 24px 110px 24px;
+            scrollbar-width: none;
+        }
+        .scrollable-content::-webkit-scrollbar { display: none; }
+        
+        /* Баланс */
+        .balance-container-v2 { display: flex; flex-direction: column; gap: 4px; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(245, 176, 37, 0.28); padding: 8px 12px; border-radius: 18px; backdrop-filter: blur(20px); }
+        .balance-item-v2 { display: flex; align-items: center; justify-content: flex-end; gap: 6px; cursor: pointer; }
+        .balance-item-v2 img { width: 16px; height: 16px; object-fit: contain; }
+        
+        /* Герой */
+        .hero-zone { position: relative; animation: heroFloat 4s ease-in-out infinite; filter: drop-shadow(0 0 38px var(--glow-gold)); text-align: center; margin: 20px 0; }
+        @keyframes heroFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        .hero-glow { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 220px; height: 220px; background: radial-gradient(circle, var(--glow-gold) 0%, transparent 70%); z-index: -1; filter: blur(30px); }
+
+        /* Кнопки меню (Карточки) */
+        .game-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+            border: 1px solid rgba(245, 176, 37, 0.18);
+            border-radius: 24px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .game-card:active { transform: scale(0.96); background: rgba(245, 176, 37, 0.08); border-color: rgba(245, 176, 37, 0.45); }
+        .game-card img { width: 56px; height: 56px; object-fit: contain; filter: drop-shadow(0 0 14px rgba(245, 176, 37, 0.35)); }
+        .card-title { font-weight: 900; font-style: italic; text-transform: uppercase; font-size: 16px; line-height: 1; letter-spacing: -0.5px; color: #fff; }
+        .card-desc { font-size: 10px; font-weight: 700; color: #f5b025; text-transform: uppercase; opacity: 0.8; margin-top: 4px; }
+
+        /* Модалки */
+        .modal-base { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(20px); z-index: 2000; display: none; align-items: flex-end; }
+        .modal-sheet { background: #231906; width: 100%; border-radius: 35px 35px 0 0; padding: 30px 24px 60px 24px; border-top: 2px solid var(--accent-gold); }
+        
+        /* Навигация */
+        .dock-bar { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(15, 10, 2, 0.95); border-top: 1px solid rgba(245, 176, 37, 0.18); display: flex; justify-content: space-around; padding: 12px 10px 34px 10px; z-index: 1000; backdrop-filter: blur(25px); height: 95px; }
+        .dock-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #736b5d; flex: 1; text-decoration: none; }
+        .dock-btn.active { color: var(--accent-gold); filter: drop-shadow(0 0 5px rgba(245, 176, 37, 0.55)); }
+        
+        #global-loader { position: fixed; inset: 0; background: var(--bg-dark); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .loader-ring { width: 50px; height: 50px; border: 3px solid #332809; border-left-color: var(--accent-gold); border-radius: 50%; animation: rotate 1s linear infinite; }
+        @keyframes rotate { to { transform: rotate(360deg); } }
+        
+        .tab-trigger { flex: 1; padding: 12px; text-align: center; font-weight: 800; font-size: 12px; color: #736b5d; transition: 0.3s; }
+        .tab-trigger.active { color: black; background: var(--accent-gold); border-radius: 14px; font-weight: 900; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="loaded">
+
+    <div id="pc-only-blocker">
+        <div class="qr-frame"><img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://t.me/NowearSpinOfficial_Bot" alt="QR"></div>
+        <h1 class="text-2xl font-black italic uppercase text-white">Играй с <span class="text-yellow-400">телефона!</span></h1>
+    </div>
+
+    <div id="global-loader">
+        <div class="loader-ring"></div>
+        <div class="mt-4 text-yellow-400 Richmond font-black italic tracking-widest animate-pulse">NowearSpin</div>
+    </div>
+
+    <canvas id="stars-canvas"></canvas>
+    
+    <div class="main-wrapper">
+        <div class="scrollable-content">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="relative">
+                        <img id="user-avatar" src="" class="w-12 h-12 rounded-full border-2 border-yellow-400/50 object-cover shadow-lg bg-gray-900">
+                        <div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-yellow-400 border-2 border-black rounded-full"></div>
+                    </div>
+                    <div>
+                        <div id="display-name" class="text-[12px] font-black text-white tracking-wide uppercase italic">ЗАГРУЗКА...</div>
+                        <div id="display-id" class="text-[9px] text-yellow-400 font-bold opacity-60">ID: 00000000</div>
+                    </div>
+                </div>
+                <div class="balance-container-v2">
+                    <div class="balance-item-v2 text-blue-400" onclick="openVault('ton')">
+                        <span id="bal-ton" class="font-black">0.00</span>
+                        <img src="img/ton.png" alt="TON" onerror="this.src='img/star.png'">
+                    </div>
+                    <div class="balance-item-v2 text-yellow-400" onclick="openVault('stars')">
+                        <span id="bal-stars" class="font-black">0</span>
+                        <img src="img/star.png" alt="STAR">
+                    </div>
+                    <div class="balance-item-v2 text-yellow-600">
+                        <span id="bal-tickets" class="font-black">0</span>
+                        <img src="img/ticket.png" alt="TICKET" onerror="this.src='img/star.png'">
+                    </div>
+                </div>
+            </div>
+
+            <div class="hero-zone">
+                <div class="hero-glow"></div>
+                <img src="hero.png" alt="HERO" class="w-40 h-40 mx-auto object-contain" onerror="this.onerror=null; this.src='https://img.icons8.com/clouds/256/crown.png'">
+                <h1 class="text-4xl font-black italic mt-2 uppercase tracking-tighter text-white">Nowear<span class="text-yellow-400">Spin</span></h1>
+                <div class="h-1 w-12 bg-yellow-400 rounded-full mx-auto mt-1 shadow-lg shadow-yellow-400/50"></div>
+            </div>
+
+            <div class="mt-6">
+                <div onclick="navigateTo('case.html')" class="game-card">
+                    <img src="img/case3.png" alt="Cases" onerror="this.src='https://img.icons8.com/fluency/96/box.png'">
+                    <div>
+                        <div class="card-title">Кейсы</div>
+                        <div class="card-desc">Открывай и выигрывай</div>
+                    </div>
+                    <div class="ml-auto opacity-30"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></div>
+                </div>
+
+                <div onclick="navigateTo('wheel.html')" class="game-card">
+                    <img src="spin.png" alt="Wheel" onerror="this.src='https://img.icons8.com/fluency/96/lucky-wheel.png'">
+                    <div>
+                        <div class="card-title">Колесо удачи</div>
+                        <div class="card-desc">Испытай свой фарт</div>
+                    </div>
+                    <div class="ml-auto"><div class="w-2.5 h-2.5 bg-yellow-400 rounded-full animate-ping"></div></div>
+                </div>
+
+                <div onclick="navigateTo('update.html')" class="game-card">
+                    <img src="helmet.png" alt="Upgrade" onerror="this.src='https://img.icons8.com/fluency/96/shield.png'">
+                    <div>
+                        <div class="card-title">Апгрейд</div>
+                        <div class="card-desc">Прокачай свои шансы</div>
+                    </div>
+                    <div class="ml-auto opacity-30"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></div>
+                </div>
+
+                <div onclick="navigateTo('games.html')" class="game-card">
+                    <img src="mini.png" alt="Games" onerror="this.src='https://img.icons8.com/fluency/96/controller.png'">
+                    <div>
+                        <div class="card-title">Мини-игры</div>
+                        <div class="card-desc">Играй и зарабатывай</div>
+                    </div>
+                    <div class="ml-auto opacity-30"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7"></path></svg></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dock-bar">
+            <div onclick="openVault('ton')" class="dock-btn">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                <span class="text-[9px] font-bold uppercase italic">Кошелёк</span>
+            </div>
+            <div class="dock-btn active">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011-1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path></svg>
+                <span class="text-[9px] font-bold uppercase italic">Главная</span>
+            </div>
+            <a href="profile.html" class="dock-btn">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                <span class="text-[9px] font-bold uppercase italic">Профиль</span>
+            </a>
+        </div>
+    </div>
+
+    <div id="vault-modal" class="modal-base" onclick="closeVault()">
+        <div class="modal-sheet" onclick="event.stopPropagation()">
+            <div class="w-12 h-1 bg-white/10 mx-auto mb-6 rounded-full"></div>
+            <div class="flex p-1 bg-black/40 rounded-xl border border-white/5 mb-6">
+                <div id="tab-btn-ton" onclick="setTab('ton')" class="tab-trigger active cursor-pointer">TON PAY</div>
+                <div id="tab-btn-stars" onclick="setTab('stars')" class="tab-trigger cursor-pointer">STARS</div>
+            </div>
+            
+            <div id="pane-ton" class="grid grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto">
+            </div>
+
+            <div id="pane-stars" class="hidden text-center">
+                <p class="text-gray-400 text-xs mb-4 uppercase font-bold">Введите количество (мин. 50):</p>
+                <input type="number" id="stars-input" placeholder="50" class="w-full bg-white/5 border border-yellow-400/30 py-4 rounded-xl text-center text-xl font-black text-white outline-none mb-4 focus:border-yellow-400">
+                <button onclick="verifyGift()" class="w-full bg-yellow-400 text-black font-black py-4 rounded-xl uppercase text-xs tracking-widest active:scale-95 transition-all shadow-lg shadow-yellow-400/20">Оплатить через Telegram</button>
+            </div>
+            
+            <button onclick="closeVault()" class="w-full mt-6 py-2 text-gray-500 font-bold uppercase text-[10px] tracking-widest">Закрыть</button>
+        </div>
+    </div>
+
+<script>
+    const tg = window.Telegram.WebApp;
+    const userId = String(tg.initDataUnsafe?.user?.id || '8015661230');
+
+    // ПОДКЛЮЧАЕМ SUPABASE НАПРЯМУЮ (Берем данные из твоего рабочего профиля)
+    const SUPABASE_URL = 'https://xjucalpaoqlrtmofmden.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_SaK4-9Ub_yQQez5F-eUq3A_NPx46axx';
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let isProcessing = false;
+
+    // Синхронизация баланса через Supabase напрямую
+    async function syncData() {
+        try {
+            const { data, error } = await _supabase
+                .from('users')
+                .select('*')
+                .eq('user_id', userId)
+                .single();
+
+            if (error) throw error;
+
+            if (data) {
+                // Извлекаем переменные точно так же, как у тебя в БД
+                const tonVal = data.balance || 0;     
+                const starsVal = data.stars || 0;     
+                const ticketsVal = data.tickets || 0; 
+                
+                // Выводим в HTML
+                document.getElementById('bal-ton').innerText = parseFloat(tonVal).toFixed(2);
+                document.getElementById('bal-stars').innerText = Math.floor(starsVal);
+                document.getElementById('bal-tickets').innerText = Math.floor(ticketsVal);
+                
+                console.log("Supabase балансы успешно обновлены:", {tonVal, starsVal, ticketsVal});
+            }
+        } catch (e) { 
+            console.error("Ошибка синхронизации через Supabase:", e); 
+        }
+    }
+
+    // Оплата TON (Для этого пока оставил Vercel URL, если бэкенд обрабатывает платежи)
+    const BACKEND_URL = 'https://stars-droper-main.vercel.app';
+    async function processPayment(amount) {
+        if (isProcessing) return;
+        isProcessing = true;
+        tg.HapticFeedback.impactOccurred('medium');
+        try {
+const res = await fetch(`${BACKEND_URL}/api/create_pay`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+        user_id: userId, 
+        amount: Number(amount)
+    })
+});
+            
+            const data = await res.json();
+            
+            if (res.ok && data.pay_url) { 
+                tg.openTelegramLink(data.pay_url); 
+                closeVault(); 
+            } else { 
+                tg.showAlert(data.error || 'Крипто-бот недоступен'); 
+            }
+        } catch (e) { 
+            tg.showAlert('Ошибка сети: проверь бэкенд'); 
+        } finally { 
+            isProcessing = false; 
+        }
+    }
+
+    async function verifyGift() {
+        const val = parseInt(document.getElementById('stars-input').value);
+        if (!val || val < 1) return tg.showAlert('Введите число');
+        
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/create_stars_pay`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    user_id: userId, 
+                    amount: val 
+                })
+            });
+            
+            const data = await res.json();
+            
+            if (data.pay_url) {
+                if (data.pay_url.includes('t.me/')) {
+                    tg.openTelegramLink(data.pay_url);
+                } else {
+                    tg.openInvoice(data.pay_url, (status) => {
+                        if (status === 'paid') tg.showAlert('Готово!');
+                    });
+                }
+            } else {
+                tg.showAlert('Сервер не прислал ссылку');
+            }
+        } catch (e) {
+            tg.showAlert('Ошибка: ' + e.message);
+        }
+    }
+
+    function renderTonPacks() {
+        const PACKS = [1, 3, 5, 10, 20, 50, 100, 250];
+        document.getElementById('pane-ton').innerHTML = PACKS.map(amt => `
+            <div onclick="processPayment(${amt})" class="bg-white/5 border border-white/10 p-4 rounded-2xl text-center active:scale-95 transition-all hover:border-yellow-400/40">
+                <div class="text-[9px] text-yellow-400 Richmond font-black uppercase mb-1">Пополнить</div>
+                <div class="font-black text-white text-lg">${amt} TON</div>
+            </div>
+        `).join('');
+    }
+
+    function setTab(type) {
+        const isTon = type === 'ton';
+        document.getElementById('tab-btn-ton').classList.toggle('active', isTon);
+        document.getElementById('tab-btn-stars').classList.toggle('active', !isTon);
+        document.getElementById('pane-ton').classList.toggle('hidden', !isTon);
+        document.getElementById('pane-stars').classList.toggle('hidden', isTon);
+    }
+
+    function openVault(tab) { 
+        tg.HapticFeedback.impactOccurred('light');
+        document.getElementById('vault-modal').style.display = 'flex'; 
+        setTab(tab); 
+    }
+    
+    function closeVault() { document.getElementById('vault-modal').style.display = 'none'; }
+    function navigateTo(url) { tg.HapticFeedback.impactOccurred('medium'); window.location.href = url; }
+
+    window.onload = () => {
+        tg.expand();
+        tg.ready();
+        
+        const firstName = tg.initDataUnsafe?.user?.first_name || "PLAYER";
+        const photoUrl = tg.initDataUnsafe?.user?.photo_url;
+        
+        document.getElementById('display-name').innerText = (tg.initDataUnsafe?.user?.username || firstName).toUpperCase();
+        document.getElementById('display-id').innerText = `ID: ${userId}`;
+        document.getElementById('user-avatar').src = photoUrl || `https://ui-avatars.com/api/?background=c68c16&color=fff&name=${firstName}`;
+        
+        syncData();
+        renderTonPacks();
+        initStars(); 
+        
+        setTimeout(() => {
+            document.getElementById('global-loader').style.display = 'none';
+            document.body.classList.add('loaded');
+        }, 800);
+    };
+
+    // Анимация звезд
+    const canvas = document.getElementById('stars-canvas');
+    const ctx = canvas.getContext('2d');
+    let starsArr = [];
+    
+    function initStars() {
+        canvas.width = window.innerWidth || document.documentElement.clientWidth;
+        canvas.height = window.innerHeight || document.documentElement.clientHeight;
+        starsArr = Array.from({length: 35}, () => ({ 
+            x: Math.random() * canvas.width, 
+            y: Math.random() * canvas.height, 
+            size: Math.random() * 1.8, 
+            speed: Math.random() * 0.4 + 0.1, 
+            opacity: Math.random() 
+        }));
+    }
+    
+    function animateStars() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        starsArr.forEach(s => {
+            ctx.beginPath(); 
+            ctx.globalAlpha = s.opacity; 
+            ctx.fillStyle = "#f5b025"; 
+            ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2); 
+            ctx.fill();
+            s.y += s.speed; 
+            if (s.y > canvas.height) s.y = -5;
+        });
+        requestAnimationFrame(animateStars);
+    }
+    
+    window.addEventListener('resize', initStars);
+    animateStars();
+</script>
+</body>
+</html>
